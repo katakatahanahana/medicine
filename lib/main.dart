@@ -32,7 +32,22 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: '薬飲み忘れ防止アプリ',
-      theme: ThemeData(primarySwatch: Colors.blue),
+      theme: ThemeData(
+        primarySwatch: Colors.orange,
+        scaffoldBackgroundColor: Colors.white,
+        appBarTheme: AppBarTheme(
+          backgroundColor: Colors.orange,
+          foregroundColor: Colors.white,
+        ),
+        floatingActionButtonTheme: FloatingActionButtonThemeData(
+          backgroundColor: Colors.orange,
+          foregroundColor: Colors.white,
+        ),
+        textTheme: TextTheme(
+          bodyLarge: TextStyle(color: Colors.black), // bodyText1 の代替
+          bodyMedium: TextStyle(color: Colors.black), // bodyText2 の代替
+        ),
+      ),
       home: MyHomePage(title: '薬飲み忘れ防止アプリ'),
     );
   }
@@ -109,10 +124,13 @@ class _MyHomePageState extends State<MyHomePage> {
       body: Column(
         children: [
           TableCalendar(
-            firstDay: DateTime.utc(2010, 10, 16),
-            lastDay: DateTime.utc(2030, 3, 14),
+            firstDay: DateTime.utc(2020, 1, 1),
+            lastDay: DateTime.utc(2030, 12, 31),
             focusedDay: _focusedDay,
-            calendarFormat: _calendarFormat,
+            calendarFormat: CalendarFormat.month,
+            availableCalendarFormats: const {
+              CalendarFormat.month: '月',
+            },
             selectedDayPredicate: (day) {
               return isSameDay(_selectedDay, day);
             },
@@ -121,13 +139,6 @@ class _MyHomePageState extends State<MyHomePage> {
                 setState(() {
                   _selectedDay = selectedDay;
                   _focusedDay = focusedDay;
-                });
-              }
-            },
-            onFormatChanged: (format) {
-              if (_calendarFormat != format) {
-                setState(() {
-                  _calendarFormat = format;
                 });
               }
             },
