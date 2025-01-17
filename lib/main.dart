@@ -85,6 +85,23 @@ class _MyHomePageState extends State<MyHomePage> {
     });
   }
 
+  /// 複数の薬をまとめて削除する
+  void deleteMedications(List<Medication> meds) {
+    setState(() {
+      for (var medication in meds) {
+        // 通知をキャンセル
+        _cancelAllNotificationsForMedication(medication);
+
+        // _medications から削除
+        _medications.forEach((date, medicationList) {
+          medicationList.removeWhere((m) => m == medication);
+        });
+      }
+      // 空になった日付キーを削除
+      _medications.removeWhere((key, value) => value.isEmpty);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -97,8 +114,11 @@ class _MyHomePageState extends State<MyHomePage> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                    builder: (context) =>
-                        MedicationListPage(medications: _medications)),
+                  builder: (context) => MedicationListPage(
+                    medications: _medications,
+                    onDeleteMedications: deleteMedications, // コールバックを渡す
+                  ),
+                ),
               );
             },
           ),
@@ -108,8 +128,9 @@ class _MyHomePageState extends State<MyHomePage> {
               final result = await Navigator.push(
                 context,
                 MaterialPageRoute(
-                    builder: (context) => NotificationSettingsPage(
-                        settings: notificationSettings)),
+                  builder: (context) =>
+                      NotificationSettingsPage(settings: notificationSettings),
+                ),
               );
               if (result != null) {
                 setState(() {
@@ -127,13 +148,11 @@ class _MyHomePageState extends State<MyHomePage> {
             firstDay: DateTime.utc(2020, 1, 1),
             lastDay: DateTime.utc(2030, 12, 31),
             focusedDay: _focusedDay,
-            calendarFormat: CalendarFormat.month,
+            calendarFormat: _calendarFormat,
             availableCalendarFormats: const {
               CalendarFormat.month: '月',
             },
-            selectedDayPredicate: (day) {
-              return isSameDay(_selectedDay, day);
-            },
+            selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
             onDaySelected: (selectedDay, focusedDay) {
               if (!isSameDay(_selectedDay, selectedDay)) {
                 setState(() {
@@ -141,6 +160,11 @@ class _MyHomePageState extends State<MyHomePage> {
                   _focusedDay = focusedDay;
                 });
               }
+            },
+            onFormatChanged: (format) {
+              setState(() {
+                _calendarFormat = format;
+              });
             },
             onPageChanged: (focusedDay) {
               _focusedDay = focusedDay;
@@ -281,6 +305,7 @@ class _MyHomePageState extends State<MyHomePage> {
     while (currentDate.isBefore(medication.endDate ?? DateTime(2101))) {
       flutterLocalNotificationsPlugin
           .cancel(medication.hashCode + currentDate.millisecondsSinceEpoch);
+
       switch (medication.repeatOption) {
         case RepeatOption.once:
           return;
@@ -423,7 +448,9 @@ class _AddMedicationPageState extends State<AddMedicationPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(widget.medication == null ? '薬を追加' : '薬を編集')),
+      appBar: AppBar(
+        title: Text(widget.medication == null ? '薬を追加' : '薬を編集'),
+      ),
       body: SingleChildScrollView(
         padding: EdgeInsets.all(16.0),
         child: Column(
@@ -475,6 +502,7 @@ class _AddMedicationPageState extends State<AddMedicationPage> {
                 setState(() {
                   repeatOption = newValue!;
                   if (repeatOption != RepeatOption.custom) {
+                    // カスタム以外は終了日をクリア
                     endDate = null;
                   }
                 });
@@ -542,29 +570,78 @@ class _AddMedicationPageState extends State<AddMedicationPage> {
   }
 }
 
-class MedicationListPage extends StatelessWidget {
+///
+/// 複数選択して薬を一括削除できる一覧画面
+///
+class MedicationListPage extends StatefulWidget {
   final Map<DateTime, List<Medication>> medications;
+  final Function(List<Medication>) onDeleteMedications;
 
-  MedicationListPage({required this.medications});
+  MedicationListPage({
+    required this.medications,
+    required this.onDeleteMedications,
+  });
+
+  @override
+  _MedicationListPageState createState() => _MedicationListPageState();
+}
+
+class _MedicationListPageState extends State<MedicationListPage> {
+  // 選択された薬を保持するSet
+  Set<Medication> _selectedMedications = {};
 
   @override
   Widget build(BuildContext context) {
+    // 全ての薬をフラットにリスト化
     List<Medication> allMedications = [];
-    medications.forEach((date, meds) {
+    widget.medications.forEach((date, meds) {
       allMedications.addAll(meds);
     });
 
     return Scaffold(
-      appBar: AppBar(title: Text('薬の一覧')),
+      appBar: AppBar(
+        title: Text('薬の一覧'),
+        actions: [
+          // 選択数が1件以上あれば、まとめて削除ボタン表示
+          if (_selectedMedications.isNotEmpty)
+            IconButton(
+              icon: Icon(Icons.delete),
+              onPressed: () {
+                // MyHomePage から受け取ったコールバックを呼び出し、一括削除
+                widget.onDeleteMedications(_selectedMedications.toList());
+
+                // 画面側の選択リストをクリア
+                setState(() {
+                  _selectedMedications.clear();
+                });
+              },
+            ),
+        ],
+      ),
       body: ListView.builder(
         itemCount: allMedications.length,
         itemBuilder: (context, index) {
-          return ListTile(
-            title: Text(allMedications[index].name),
+          final medication = allMedications[index];
+          final isSelected = _selectedMedications.contains(medication);
+
+          return CheckboxListTile(
+            title: Text(medication.name),
             subtitle: Text(
-                '日付: ${allMedications[index].date.toString().split(' ')[0]}, '
-                '時間: ${allMedications[index].time.format(context)}, '
-                '繰り返し: ${_getRepeatOptionText(allMedications[index].repeatOption)}'),
+              '日付: ${medication.date.toString().split(' ')[0]}, '
+              '時間: ${medication.time.format(context)}, '
+              '繰り返し: ${_getRepeatOptionText(medication.repeatOption)}',
+            ),
+            value: isSelected,
+            onChanged: (bool? newValue) {
+              if (newValue == null) return;
+              setState(() {
+                if (newValue) {
+                  _selectedMedications.add(medication);
+                } else {
+                  _selectedMedications.remove(medication);
+                }
+              });
+            },
           );
         },
       ),
@@ -619,7 +696,9 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('通知設定')),
+      appBar: AppBar(
+        title: Text('通知設定'),
+      ),
       body: Padding(
         padding: EdgeInsets.all(16.0),
         child: Column(
@@ -657,6 +736,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
                 SharedPreferences prefs = await SharedPreferences.getInstance();
                 await prefs.setBool('notificationsEnabled', isEnabled);
                 await prefs.setInt('notificationMinutesBefore', minutesBefore);
+
                 Navigator.pop(
                   context,
                   NotificationSettings(
