@@ -1,5 +1,9 @@
 # 薬飲み忘れ防止アプリ
 
+<img src="https://github.com/user-attachments/assets/13e25991-bd5d-4976-858f-de8930d1ab81" width="30%">
+<img src="https://github.com/user-attachments/assets/ba97b854-4cf9-4e2a-b357-c3ce73c11e08" width="30%">
+
+
 ## 生成AIが有用なタスク
 
 1. コードの初期テンプレート生成
